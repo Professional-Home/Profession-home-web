@@ -381,6 +381,11 @@ CREATE TABLE IF NOT EXISTS public.startup_assessments (
   problem_validation  INT DEFAULT 0,
   customer_validation INT DEFAULT 0,
   product_readiness   INT DEFAULT 0,
+  market_opportunity  INT DEFAULT 0,
+  business_model      INT DEFAULT 0,
+  team_strength       INT DEFAULT 0,
+  financial_health    INT DEFAULT 0,
+  execution_growth    INT DEFAULT 0,
   diagnosis           TEXT,
   recommendations     JSONB DEFAULT '[]',
   completed_at        TIMESTAMPTZ,
@@ -398,6 +403,7 @@ CREATE TABLE IF NOT EXISTS public.startup_tasks (
   deadline    DATE,
   progress    INT DEFAULT 0,
   category    TEXT,
+  ai_suggestion TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -409,7 +415,35 @@ CREATE TABLE IF NOT EXISTS public.startup_documents (
   file_url    TEXT,
   status      TEXT DEFAULT 'Empty',
   score       INT,
+  file_size   TEXT,
+  general_feedback TEXT,
+  slide_feedback   JSONB DEFAULT '[]',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── FOUNDER OS: STARTUP ROADMAP ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.startup_roadmap_phases (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  phase_number    INT NOT NULL,
+  phase_name      TEXT NOT NULL,
+  target_duration TEXT,
+  icon_name       TEXT,
+  progress        INT DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+  is_active       BOOLEAN DEFAULT FALSE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, phase_number)
+);
+
+CREATE TABLE IF NOT EXISTS public.startup_roadmap_milestones (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phase_id    UUID NOT NULL REFERENCES public.startup_roadmap_phases(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  description TEXT,
+  completed   BOOLEAN NOT NULL DEFAULT FALSE,
+  locked      BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order  INT DEFAULT 0
 );
 
 -- ─── RESEARCHER OS ───────────────────────────────────────────────────────────
@@ -496,6 +530,10 @@ DROP TRIGGER IF EXISTS startup_profiles_updated_at ON public.startup_profiles;
 CREATE TRIGGER startup_profiles_updated_at BEFORE UPDATE ON public.startup_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS startup_roadmap_phases_updated_at ON public.startup_roadmap_phases;
+CREATE TRIGGER startup_roadmap_phases_updated_at BEFORE UPDATE ON public.startup_roadmap_phases
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 DROP TRIGGER IF EXISTS researcher_profiles_updated_at ON public.researcher_profiles;
 CREATE TRIGGER researcher_profiles_updated_at BEFORE UPDATE ON public.researcher_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -551,6 +589,8 @@ ALTER TABLE public.startup_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.startup_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.startup_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.startup_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.startup_roadmap_phases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.startup_roadmap_milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.researcher_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.research_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.research_publications ENABLE ROW LEVEL SECURITY;
@@ -598,6 +638,10 @@ CREATE POLICY "own_startup" ON public.startup_profiles FOR ALL USING (auth.uid()
 CREATE POLICY "own_startup_assess" ON public.startup_assessments FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "own_startup_tasks" ON public.startup_tasks FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "own_startup_docs" ON public.startup_documents FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "own_startup_roadmap_phases" ON public.startup_roadmap_phases FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "own_startup_milestones" ON public.startup_roadmap_milestones FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.startup_roadmap_phases p WHERE p.id = phase_id AND p.user_id = auth.uid())
+);
 CREATE POLICY "own_researcher" ON public.researcher_profiles FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "own_research_projects" ON public.research_projects FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "own_publications" ON public.research_publications FOR ALL USING (auth.uid() = user_id);
