@@ -87,6 +87,7 @@ export interface Message {
 
 export interface AchievementBadge {
   id: string;
+  dbId?: string;
   title: string;
   description: string;
   category: 'Assessment' | 'Docs' | 'Roadmap' | 'Tasks' | 'AI' | 'Community';
